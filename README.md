@@ -98,6 +98,353 @@ The `get_all_years_data()` function returns a dictionary:
 }
 ```
 
+## Classifier Evaluation for Malware Detection
+
+The project now includes a comprehensive `ClassifierEvaluator` class for evaluating malware detection classifiers with metrics in precedence order.
+
+### Key Features
+
+1. **Metrics in Precedence Order**: Accuracy > F1-Score > Precision > Recall
+2. **Imbalanced Data Support**: Uses macro-averaging for F1, precision, recall
+3. **Confusion Matrix**: Raw and normalized versions
+4. **Classifier Comparison**: Systematic comparison with tie-breaking
+5. **Visualization**: Optional confusion matrix plots
+
+## Complete Malware Detection Training System
+
+The project now includes a complete command-line interface for training, evaluating, and managing malware detection models with drift-aware retraining.
+
+### System Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 MALWARE DETECTION TRAINING SYSTEM            │
+├─────────────────────────────────────────────────────────────┤
+│  • Data Loading & Management                                │
+│  • Single Year & Cross-Time Training                       │
+│  • 3-Model Ensemble with Security-First Voting             │
+│  • Drift-Aware Auto-Retraining                             │
+│  • Model Testing & Evaluation                              │
+│  • Configuration & Model Management                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Quick Start
+
+```bash
+# Start interactive mode
+python run_malware_detection.py
+
+# Or use direct commands
+python run_malware_detection.py load input_data
+python run_malware_detection.py train single 2019
+python run_malware_detection.py test test_folder
+```
+
+### Key Components
+
+#### 1. Main CLI Interface (`malware_detection_cli.py`)
+- **Data Management**: Load, analyze, and manage malware datasets
+- **Model Training**: Single year and cross-time training
+- **Auto-Retraining**: Drift-aware automatic model updates
+- **Testing**: Test models on new datasets
+- **Model Management**: Save, load, and list trained models
+
+#### 2. 3-Model Ensemble (`SecurityFirstEnsemble` in `models.py`)
+- **Model Trio**: LogisticRegression + RandomForest + GradientBoosting
+- **Security-First Voting**: Defaults to malware when models disagree
+- **Multiple Strategies**: Hard, soft, and stacked voting
+- **Tie-Breaking**: Malware (security-first), confidence, or reject
+
+#### 3. Drift-Aware Retraining (`retraining_system.py`)
+- **Drift Detection**: Automatic concept drift monitoring
+- **Performance Tracking**: Model performance degradation detection
+- **Intelligent Retraining**: Retrain only when needed
+- **Model Registry**: Versioned model storage and management
+
+### Available Commands
+
+#### Data Commands
+```bash
+# Load data from folder
+python run_malware_detection.py load input_data
+
+# Load specific folder
+python run_malware_detection.py load /path/to/data
+```
+
+#### Training Commands
+```bash
+# Train on single year
+python run_malware_detection.py train single 2019
+python run_malware_detection.py train single 2019 --model individual
+
+# Cross-time training
+python run_malware_detection.py train cross 2014,2015,2016 2017
+python run_malware_detection.py train cross 2014,2015 2016 --model individual
+```
+
+#### Auto-Retraining Commands
+```bash
+# Setup auto-retraining
+python run_malware_detection.py auto setup
+python run_malware_detection.py auto setup --start 2016 --end 2020
+
+# Run auto-retraining
+python run_malware_detection.py auto run
+```
+
+#### Testing Commands
+```bash
+# Test model on new data
+python run_malware_detection.py test test_data_folder
+
+# Test specific model
+python run_malware_detection.py test test_data --model ensemble_2019_20250101_120000
+```
+
+#### Utility Commands
+```bash
+# List trained models
+python run_malware_detection.py list
+
+# Save model to file
+python run_malware_detection.py save ensemble_2019_20250101_120000 my_model.pkl
+
+# Load model from file
+python run_malware_detection.py load-model my_model.pkl
+
+# Show configuration
+python run_malware_detection.py config
+```
+
+### Interactive Mode
+
+Run without arguments to start interactive mode:
+
+```bash
+python run_malware_detection.py
+```
+
+Interactive mode provides a menu-driven interface with all the same functionality.
+
+### Configuration
+
+Configuration is stored in `md_config.json`:
+
+```json
+{
+  "data_folder": "input_data",
+  "model_registry": "model_registry",
+  "drift_threshold": 0.3,
+  "performance_threshold": 0.05,
+  "default_voting": "hard",
+  "default_tie_breaker": "malware",
+  "models_folder": "saved_models",
+  "test_results_folder": "test_results"
+}
+```
+
+### Creating Test Data
+
+Use `example_custom_test_data.py` to create test datasets:
+
+```bash
+# Create custom test data
+python example_custom_test_data.py
+
+# Then test the system
+python run_malware_detection.py test test_folder_name
+```
+
+### Example Workflows
+
+#### 1. Basic Training & Testing
+```bash
+# Load data
+python run_malware_detection.py load input_data
+
+# Train on 2019
+python run_malware_detection.py train single 2019
+
+# Create test data
+python example_custom_test_data.py
+
+# Test the model
+python run_malware_detection.py test test_data_demo
+```
+
+#### 2. Cross-Time Analysis
+```bash
+# Train on 2014-2016, test on 2017
+python run_malware_detection.py train cross 2014,2015,2016 2017
+
+# Train on 2017-2019, test on 2020
+python run_malware_detection.py train cross 2017,2018,2019 2020
+```
+
+#### 3. Auto-Retraining Pipeline
+```bash
+# Setup auto-retraining
+python run_malware_detection.py auto setup
+
+# Run progressive validation across all years
+python run_malware_detection.py auto run
+```
+
+### File Structure
+
+```
+Project2/
+├── malware_detection_cli.py      # Main CLI interface
+├── run_malware_detection.py      # Wrapper script with help
+├── example_custom_test_data.py   # Create test data
+├── md_config.json               # System configuration
+├── models.py                    # Models and ensemble
+├── retraining_system.py         # Auto-retraining system
+├── drift.py                     # Drift detection
+├── data.py                      # Data loading
+├── dataset.py                   # Dataset management
+├── sample.py                    # Sample class
+└── input_data/                  # Your malware dataset
+```
+
+### System Features
+
+1. **Flexible Data Loading**: Loads standard CSV format with year labels
+2. **Multiple Training Modes**: Single year, cross-time, and auto-retraining
+3. **Ensemble Methods**: 3-model voting with security-first tie-breaking
+4. **Drift Awareness**: Automatic retraining when concept drift detected
+5. **Model Management**: Save, load, and version control for models
+6. **Comprehensive Testing**: Test models on new datasets with full evaluation
+7. **Configurable**: All parameters adjustable via configuration file
+
+### Supported Data Format
+
+The system expects CSV files named:
+```
+sampled_YYYY_benign_api.csv
+sampled_YYYY_malware_api.csv
+```
+
+Where `YYYY` is the year (e.g., 2014, 2015, etc.).
+
+### Performance Metrics
+
+All evaluations include:
+- **Accuracy**: Overall correct predictions
+- **F1-Score**: Balance of precision and recall
+- **Precision**: Of predicted malware, how many are actually malware
+- **Recall**: Of actual malware, how many did we detect
+- **Confusion Matrix**: Detailed breakdown of predictions
+- **Model Agreement**: How often all 3 models agree (ensembles only)
+
+### Next Steps
+
+1. **Visualization**: Add performance charts and drift visualization
+2. **Web Interface**: Build Flask/Dash web interface
+3. **Real-time Monitoring**: Add streaming data support
+4. **Advanced Ensembles**: Add more model types and voting methods
+5. **Deployment**: Package for production deployment
+
+### Import and Basic Usage
+
+```python
+from models import ClassifierEvaluator
+
+# Create evaluator with predictions
+evaluator = ClassifierEvaluator(
+    classifier_name="MalwareDetectorV1",
+    y_true=y_test,
+    y_pred=y_pred
+)
+
+# Comprehensive evaluation
+results = evaluator.evaluate(
+    verbose=True,
+    include_confusion_matrix=True,
+    plot_confusion_matrix=False  # Set to True to plot
+)
+
+# Access metrics
+metrics = evaluator.calculate_metrics()
+print(f"Accuracy: {metrics['accuracy']:.4f}")
+print(f"F1-Score: {metrics['f1_score']:.4f}")
+print(f"Precision: {metrics['precision']:.4f}")
+print(f"Recall: {metrics['recall']:.4f}")
+
+# Confusion matrix
+cm = evaluator.get_confusion_matrix()
+cm_norm = evaluator.get_confusion_matrix(normalize=True)
+```
+
+### Integrated Training Function
+
+```python
+from models import train_and_evaluate_classifiers
+
+# Train and evaluate multiple classifiers
+results = train_and_evaluate_classifiers(
+    X_train, X_test, y_train, y_test,
+    use_evaluator=True  # Enables ClassifierEvaluator
+)
+
+# Access results for each classifier
+for name, result in results.items():
+    metrics = result['evaluation']['metrics']
+    print(f"{name}: Accuracy={metrics['accuracy']:.4f}, F1={metrics['f1_score']:.4f}")
+```
+
+### Quick Evaluation
+
+```python
+from models import quick_evaluate_classifier
+
+results = quick_evaluate_classifier(
+    classifier_name="MalwareScanner",
+    y_true=y_test,
+    y_pred=y_pred,
+    plot_cm=True,
+    normalize_cm=True
+)
+```
+
+### Classifier Comparison
+
+```python
+# Compare two classifiers
+evaluator1 = ClassifierEvaluator("ClassifierA", y_test, y_pred1)
+evaluator2 = ClassifierEvaluator("ClassifierB", y_test, y_pred2)
+
+comparison = evaluator1.compare_with_other(evaluator2, verbose=True)
+print(f"Overall winner: {comparison['overall_winner']}")
+```
+
+### Why Precedence Order Matters for Malware Detection
+
+Malware detection is typically imbalanced (few malware samples). The precedence order helps:
+
+1. **Accuracy**: Overall performance, but can be misleading for imbalanced data
+2. **F1-Score**: Balances precision and recall (important for security)
+3. **Precision**: Minimizes false positives (user experience)
+4. **Recall**: Maximizes malware detection (security)
+
+### Example Test Scripts
+
+- `test_evaluator.py`: Full demonstration of all features
+- `example_evaluator_usage.py`: Practical usage examples
+- `example_usage.py`: Original data processing examples
+
+### Installation (Additional Dependencies)
+
+```bash
+# For basic functionality
+pip install scikit-learn pandas numpy
+
+# For visualization features
+pip install matplotlib seaborn
+```
+
 Where:
 - `X` is a pandas DataFrame with shape `(n_samples, n_features)`
 - `y` is a pandas Series with shape `(n_samples,)`

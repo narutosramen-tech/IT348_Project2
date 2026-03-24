@@ -1,0 +1,11 @@
+{
+  "data_folder": "input_data",
+  "model_registry": "model_registry",
+  "drift_threshold": 0.3,
+  "performance_threshold": 0.05,
+  "default_voting": "hard",
+  "default_tie_breaker": "malware",
+  "log_file": "malware_detection.log",
+  "models_folder": "saved_models",
+  "test_results_folder": "test_results"
+}
