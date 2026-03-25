@@ -5,6 +5,10 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 import pandas as pd
 import numpy as np
 from typing import Dict, Tuple, Optional, Any
+
+# Constants
+TIE_THRESHOLD = 0.015  # 1.5% difference considered a tie
+
 # Optional imports for visualization (only needed if plotting confusion matrices)
 try:
     import matplotlib.pyplot as plt
@@ -19,9 +23,10 @@ except ImportError:
 class ClassifierEvaluator:
     """
     A class to evaluate classifier performance with metrics in order of precedence:
-    Accuracy > F1-score > Precision > Recall
+    Recall > F1-score > Precision > Accuracy
 
-    Useful for imbalanced classification problems like malware detection.
+    For malware detection, minimizing false negatives (missed malware) is critical.
+    Models within 1.5% (0.015) difference are considered tied for that metric.
     """
 
     def __init__(self, classifier_name: str, y_true, y_pred):
@@ -152,11 +157,11 @@ class ClassifierEvaluator:
         print(f"EVALUATION RESULTS - {self.classifier_name}")
         print(f"{'='*60}")
 
-        # Print metrics in order of precedence
-        print(f"Accuracy:  {metrics['accuracy']:.4f}")
+        # Print metrics in new precedence order (Recall first for malware detection)
+        print(f"Recall*:   {metrics['recall']:.4f}  (Primary: Minimizing missed malware)")
         print(f"F1-Score:  {metrics['f1_score']:.4f}")
         print(f"Precision: {metrics['precision']:.4f}")
-        print(f"Recall:    {metrics['recall']:.4f}")
+        print(f"Accuracy:  {metrics['accuracy']:.4f}")
 
         print(f"{'='*60}")
 
@@ -177,34 +182,24 @@ class ClassifierEvaluator:
 
         comparison = {}
 
-        # Compare in order of precedence: Accuracy > F1 > Precision > Recall
-        if metrics_self['accuracy'] > metrics_other['accuracy']:
-            comparison['accuracy_winner'] = self.classifier_name
-        elif metrics_self['accuracy'] < metrics_other['accuracy']:
-            comparison['accuracy_winner'] = other_evaluator.classifier_name
-        else:
-            comparison['accuracy_winner'] = "Tie"
+        # Compare in NEW precedence order: Recall > F1 > Precision > Accuracy (malware detection focus)
+        # Use tie threshold for all comparisons
 
-        if metrics_self['f1_score'] > metrics_other['f1_score']:
-            comparison['f1_winner'] = self.classifier_name
-        elif metrics_self['f1_score'] < metrics_other['f1_score']:
-            comparison['f1_winner'] = other_evaluator.classifier_name
-        else:
-            comparison['f1_winner'] = "Tie"
+        # Recall (most important for malware detection)
+        recall_comparison = self._is_better_metric(metrics_self['recall'], metrics_other['recall'])
+        comparison['recall_winner'] = self._get_winner_from_comparison(recall_comparison, other_evaluator.classifier_name)
 
-        if metrics_self['precision'] > metrics_other['precision']:
-            comparison['precision_winner'] = self.classifier_name
-        elif metrics_self['precision'] < metrics_other['precision']:
-            comparison['precision_winner'] = other_evaluator.classifier_name
-        else:
-            comparison['precision_winner'] = "Tie"
+        # F1-Score (balanced measure)
+        f1_comparison = self._is_better_metric(metrics_self['f1_score'], metrics_other['f1_score'])
+        comparison['f1_winner'] = self._get_winner_from_comparison(f1_comparison, other_evaluator.classifier_name)
 
-        if metrics_self['recall'] > metrics_other['recall']:
-            comparison['recall_winner'] = self.classifier_name
-        elif metrics_self['recall'] < metrics_other['recall']:
-            comparison['recall_winner'] = other_evaluator.classifier_name
-        else:
-            comparison['recall_winner'] = "Tie"
+        # Precision (minimize false positives)
+        precision_comparison = self._is_better_metric(metrics_self['precision'], metrics_other['precision'])
+        comparison['precision_winner'] = self._get_winner_from_comparison(precision_comparison, other_evaluator.classifier_name)
+
+        # Accuracy (overall performance)
+        accuracy_comparison = self._is_better_metric(metrics_self['accuracy'], metrics_other['accuracy'])
+        comparison['accuracy_winner'] = self._get_winner_from_comparison(accuracy_comparison, other_evaluator.classifier_name)
 
         # Determine overall winner based on precedence
         overall_winner = self._determine_overall_winner(comparison)
@@ -216,21 +211,47 @@ class ClassifierEvaluator:
 
         return comparison
 
+    def _is_better_metric(self, metric_self: float, metric_other: float) -> str:
+        """
+        Determine winner for a metric with tie threshold.
+
+        Returns:
+            'self', 'other', or 'tie' if within tie threshold
+        """
+        diff = abs(metric_self - metric_other)
+
+        if diff <= TIE_THRESHOLD:
+            return 'tie'
+        elif metric_self > metric_other:
+            return 'self'
+        else:
+            return 'other'
+
+    def _get_winner_from_comparison(self, comparison_result: str, other_name: str) -> str:
+        """Convert comparison result to winner string."""
+        if comparison_result == 'self':
+            return self.classifier_name
+        elif comparison_result == 'other':
+            return other_name
+        else:  # 'tie'
+            return "Tie"
+
     def _determine_overall_winner(self, comparison: Dict[str, str]) -> str:
         """
         Determine overall winner based on precedence order.
+        For malware detection: Recall > F1 > Precision > Accuracy
         """
-        # Check in order: Accuracy > F1 > Precision > Recall
-        if comparison['accuracy_winner'] != "Tie":
-            return comparison['accuracy_winner']
+        # Check in NEW order: Recall > F1 > Precision > Accuracy (malware detection focus)
+        if comparison['recall_winner'] != "Tie":
+            return comparison['recall_winner']
         elif comparison['f1_winner'] != "Tie":
             return comparison['f1_winner']
         elif comparison['precision_winner'] != "Tie":
             return comparison['precision_winner']
-        elif comparison['recall_winner'] != "Tie":
-            return comparison['recall_winner']
+        elif comparison['accuracy_winner'] != "Tie":
+            return comparison['accuracy_winner']
         else:
-            return "Tie (All metrics equal)"
+            return "Tie (All metrics within 1.5% threshold)"
 
     def _print_comparison_report(self, comparison: Dict[str, str],
                                 metrics_self: Dict[str, float],
@@ -245,28 +266,30 @@ class ClassifierEvaluator:
         print(f"{self.classifier_name} vs {other_name}")
         print(f"{'='*60}")
 
-        print(f"\nAccuracy Comparison:")
-        print(f"  {self.classifier_name}: {metrics_self['accuracy']:.4f}")
-        print(f"  {other_name}: {metrics_other['accuracy']:.4f}")
-        print(f"  Winner: {comparison['accuracy_winner']}")
+        print(f"\nRecall* Comparison (Primary for malware detection):")
+        print(f"  {self.classifier_name}: {metrics_self['recall']:.4f}")
+        print(f"  {other_name}: {metrics_other['recall']:.4f}")
+        print(f"  Winner: {comparison['recall_winner']}")
+        print(f"     (Models within {TIE_THRESHOLD:.3f} difference considered tied)")
 
-        print(f"\nF1-Score Comparison:")
+        print(f"\nF1-Score Comparison (Balanced measure):")
         print(f"  {self.classifier_name}: {metrics_self['f1_score']:.4f}")
         print(f"  {other_name}: {metrics_other['f1_score']:.4f}")
         print(f"  Winner: {comparison['f1_winner']}")
 
-        print(f"\nPrecision Comparison:")
+        print(f"\nPrecision Comparison (Minimizing false positives):")
         print(f"  {self.classifier_name}: {metrics_self['precision']:.4f}")
         print(f"  {other_name}: {metrics_other['precision']:.4f}")
         print(f"  Winner: {comparison['precision_winner']}")
 
-        print(f"\nRecall Comparison:")
-        print(f"  {self.classifier_name}: {metrics_self['recall']:.4f}")
-        print(f"  {other_name}: {metrics_other['recall']:.4f}")
-        print(f"  Winner: {comparison['recall_winner']}")
+        print(f"\nAccuracy Comparison (Overall performance):")
+        print(f"  {self.classifier_name}: {metrics_self['accuracy']:.4f}")
+        print(f"  {other_name}: {metrics_other['accuracy']:.4f}")
+        print(f"  Winner: {comparison['accuracy_winner']}")
 
         print(f"\n{'='*60}")
-        print(f"OVERALL WINNER (by precedence): {comparison['overall_winner']}")
+        print(f"OVERALL WINNER (Recall > F1 > Precision > Accuracy): {comparison['overall_winner']}")
+        print(f"Tie threshold: {TIE_THRESHOLD:.3f} (1.5%)")
         print(f"{'='*60}")
 
 
@@ -289,8 +312,7 @@ def train_and_evaluate_classifiers(X_train: pd.DataFrame, X_test: pd.DataFrame,
 
     classifiers = {
         "LogisticRegression": LogisticRegression(max_iter=1000, random_state=42),
-        "RandomForest": RandomForestClassifier(n_estimators=200, random_state=42),
-        "GradientBoosting": GradientBoostingClassifier(n_estimators=100, random_state=42)
+        "RandomForest": RandomForestClassifier(n_estimators=200, random_state=42)
     }
 
     results = {}
