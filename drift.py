@@ -1,6 +1,8 @@
+#!/usr/bin/env python3
 """
+
     Author: Jon Bailey
-    Claude assisted with edge case identification.
+    Claude assisted with edge case identification, and testing.
 """
 
 import pandas as pd

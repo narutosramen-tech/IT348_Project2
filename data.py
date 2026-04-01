@@ -1,6 +1,6 @@
 """
     Author: Jon Bailey
-    with help from Claude AI.
+    with help testing from Claude AI.
 """
 import pandas as pd
 import numpy as np

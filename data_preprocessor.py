@@ -1,3 +1,7 @@
+"""
+Author - Jon Bailey, written without assistance, Cluade AI helped test.
+"""
+
 import pandas as pd
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.model_selection import train_test_split

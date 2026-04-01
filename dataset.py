@@ -1,6 +1,7 @@
 """
     Author: Jon Bailey
     Written without AI assistance.
+    A class to contain Sample objects created from the data dictionary in the data_preprocessor
 """
 
 from typing import Dict, Tuple, List
