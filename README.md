@@ -1,6 +1,77 @@
-# CSV Data Processing Program
+# Malware Detection System
 
-This program loads and processes CSV files for malware detection analysis.
+A comprehensive malware detection system with command-line interface, ensemble classifiers, and drift-aware retraining.
+
+## Quick Start - CLI Usage
+
+### Interactive Mode
+```bash
+python run_malware_detection.py
+```
+
+### Direct Commands
+
+#### Load Data
+```bash
+python run_malware_detection.py load input_data
+```
+
+#### Train Models
+```bash
+# Train on single year
+python run_malware_detection.py train single 2019
+
+# Cross-time training
+python run_malware_detection.py train cross 2014,2015,2016 2017
+```
+
+#### Test Models
+```bash
+python run_malware_detection.py test test_folder
+```
+
+#### Auto-Retraining
+```bash
+# Setup auto-retraining
+python run_malware_detection.py auto setup
+python run_malware_detection.py auto run
+```
+
+#### Utilities
+```bash
+# List trained models
+python run_malware_detection.py list
+
+# Show configuration
+python run_malware_detection.py config
+
+# Save/load models
+python run_malware_detection.py save model_name model.pkl
+python run_malware_detection.py load-model model.pkl
+```
+
+### Help Command
+```bash
+# Show available commands and usage
+python run_malware_detection.py
+```
+
+**For complete CLI command reference**, see [Detailed CLI Documentation](#complete-malware-detection-training-system)
+
+### Example Workflow
+```bash
+# 1. Load data
+python run_malware_detection.py load input_data
+
+# 2. Train on a single year
+python run_malware_detection.py train single 2019
+
+# 3. Create test data
+python example_custom_test_data.py
+
+# 4. Test the model
+python run_malware_detection.py test test_data_demo
+```
 
 ## Overview
 

@@ -57,9 +57,9 @@ class ClassifierEvaluator:
         metrics['accuracy'] = accuracy_score(self.y_true, self.y_pred)
 
         # Calculate F1-score, precision, recall (macro-averaged for imbalanced datasets)
-        metrics['f1_score'] = f1_score(self.y_true, self.y_pred, average='macro')
-        metrics['precision'] = precision_score(self.y_true, self.y_pred, average='macro')
-        metrics['recall'] = recall_score(self.y_true, self.y_pred, average='macro')
+        metrics['f1_score'] = f1_score(self.y_true, self.y_pred, average='binary', pos_label = 1)
+        metrics['precision'] = precision_score(self.y_true, self.y_pred, average='binary', pos_label = 1)
+        metrics['recall'] = recall_score(self.y_true, self.y_pred, average='binary', pos_label = 1)
 
         return metrics
 
@@ -241,7 +241,7 @@ class ClassifierEvaluator:
         Determine overall winner based on precedence order.
         For malware detection: Recall > F1 > Precision > Accuracy
         """
-        # Check in NEW order: Recall > F1 > Precision > Accuracy (malware detection focus)
+        # Check in order: Recall > F1 > Precision > Accuracy (malware detection focus)
         if comparison['recall_winner'] != "Tie":
             return comparison['recall_winner']
         elif comparison['f1_winner'] != "Tie":
@@ -312,7 +312,8 @@ def train_and_evaluate_classifiers(X_train: pd.DataFrame, X_test: pd.DataFrame,
 
     classifiers = {
         "LogisticRegression": LogisticRegression(max_iter=1000, random_state=42),
-        "RandomForest": RandomForestClassifier(n_estimators=200, random_state=42)
+        "RandomForest": RandomForestClassifier(n_estimators=200, random_state=42),
+        "GradientBoosting": GradientBoostingClassifier(n_estimators=200, random_state=42)
     }
 
     results = {}
@@ -329,7 +330,10 @@ def train_and_evaluate_classifiers(X_train: pd.DataFrame, X_test: pd.DataFrame,
         # Make predictions
         y_pred = clf.predict(X_test)
 
-        if use_evaluator:
+        if use_evaluator and len(evaluators) >= 2:
+            print(f"\n{'=' * 60}")
+            print("COMPARING CLASSIFIERS (Priority: Recall > F1 > Precision > Accuracy)")
+            print(f"\n{'=' * 60}")
             # Use ClassifierEvaluator for comprehensive evaluation
             evaluator = ClassifierEvaluator(name, y_test.values, y_pred)
             evaluation = evaluator.evaluate(
@@ -351,6 +355,8 @@ def train_and_evaluate_classifiers(X_train: pd.DataFrame, X_test: pd.DataFrame,
             acc = accuracy_score(y_test, y_pred)
             report = classification_report(y_test, y_pred, digits=4)
             cm = confusion_matrix(y_test, y_pred)
+            recall = recall_score(y_test, y_pred)
+            precision = precision_score(y_test, y_pred)
 
             print(f"{name} Accuracy: {acc:.4f}")
             print(f"{name} Classification Report:\n{report}")
@@ -358,6 +364,8 @@ def train_and_evaluate_classifiers(X_train: pd.DataFrame, X_test: pd.DataFrame,
 
             results[name] = {
                 "model": clf,
+                "recall": recall,
+                "precision": precision,
                 "accuracy": acc,
                 "report": report,
                 "confusion_matrix": cm
@@ -676,20 +684,18 @@ class SecurityFirstEnsemble:
         if not hasattr(self, 'individual_models'):
             return 0.0
 
-        n_samples = X.shape[0]
-        agreement_count = 0
+        all_preds = []
+        for model in self.individual_models.values():
+            all_preds.append(model.predict(X))
+        
+        # Stack into a matrix: (n_models, n_samples)
+        pred_matrix = np.vstack(all_preds)
 
-        for i in range(n_samples):
-            model_predictions = []
-            for name, model in self.individual_models.items():
-                pred = model.predict(X.iloc[[i]])[0]
-                model_predictions.append(pred)
+        # Check if all values in a column are equal to the first value in that column
+        agreements = np.all(pred_matrix == pred_matrix[0, :], axis = 0)
+        return np.mean(agreements)
 
-            # Check if all models agree
-            if len(set(model_predictions)) == 1:
-                agreement_count += 1
 
-        return agreement_count / n_samples
 
 
 def train_and_evaluate_ensemble(X_train: pd.DataFrame, X_test: pd.DataFrame,
@@ -733,31 +739,50 @@ def train_and_evaluate_ensemble(X_train: pd.DataFrame, X_test: pd.DataFrame,
         use_evaluator=True
     )
 
-    # Extract best F1 from individual models
-    best_individual_f1 = 0
+    # # Extract best F1 from individual models
+    # best_individual_f1 = 0
+    # Extract best metrics from individual models
+    best_score = (-1, -1, -1, -1) # (Recall, F1, Precision, Acc)
     best_individual_model = None
 
     for name, result in individual_results.items():
+        # 1. Check if the evaluation was successful
         if 'evaluation' in result:
-            f1 = result['evaluation']['metrics']['f1_score']
-            if f1 > best_individual_f1:
-                best_individual_f1 = f1
-                best_individual_model = name
+            eval_obj = result['evaluation']
+            
+            # 2. Check if 'metrics' exists inside the evaluation object
+            if 'metrics' in eval_obj:
+                m = eval_obj['metrics']
+                
+                # 3. Build the score tuple using the EXACT keys from calculate_metrics()
+                current_score = (
+                    m.get('recall', 0), 
+                    m.get('f1_score', 0), 
+                    m.get('precision', 0), 
+                    m.get('accuracy', 0)
+                )
+                
+                if current_score > best_score:
+                    best_score = current_score
+                    best_individual_model = name
 
-    ensemble_f1 = results['metrics']['f1_score']
+    ensemble_metrics = results['metrics']
+    ensemble_score = (ensemble_metrics['recall'], 
+                      ensemble_metrics['f1_score'],
+                      ensemble_metrics['precision'],
+                      ensemble_metrics['accuracy']
+                )
 
-    print(f"\nBest Individual Model ({best_individual_model}): F1 = {best_individual_f1:.4f}")
-    print(f"Ensemble Model: F1 = {ensemble_f1:.4f}")
+    print(f"\nBest Individual Model ({best_individual_model}): Recall = {best_score[0]:.4f}, F1 = {best_score[1]:.4f}")
+    print(f"Ensemble Model: Recall = {ensemble_score[0]:.4f}, F1 = {ensemble_score[1]:.4f}")
 
-    if ensemble_f1 > best_individual_f1:
-        improvement = (ensemble_f1 - best_individual_f1) / best_individual_f1 * 100
-        print(f"Ensemble IMPROVEMENT: +{improvement:.1f}%")
+    if ensemble_score > best_score:
+        print("Ensemble IS BETTER than the individual model based on prioiritized metrics.")
     else:
-        print("Ensemble not better than best individual model")
-
+        print("Ensemble IS NOT better than the best individual model.")
     return {
         'ensemble': ensemble,
         'ensemble_results': results,
         'individual_results': individual_results,
-        'improvement': ensemble_f1 - best_individual_f1
+        'improvement': (ensemble_score[0] - best_score[0], ensemble_score[1] - best_score[1], ensemble_score[2] - best_score[2], ensemble_score[3] - best_score[3])
     }

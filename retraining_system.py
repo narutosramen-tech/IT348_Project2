@@ -251,18 +251,18 @@ class DriftAwareRetrainingSystem:
             return True, 1.0
 
         # Find the best historical performance
-        best_f1 = history_df['f1_score'].max()
-        current_f1 = current_performance.get('f1_score', 0)
+        best_recall = history_df['recall'].max()
+        current_recall = current_performance.get('recall', 0)
 
         # Calculate performance drop
-        if best_f1 > 0:
-            performance_drop = (best_f1 - current_f1) / best_f1
+        if best_recall > 0:
+            performance_drop = (best_recall - current_recall) / best_recall
         else:
             performance_drop = 1.0
 
         print(f"Performance analysis for {model_name}:")
-        print(f"  Best historical F1: {best_f1:.4f}")
-        print(f"  Current F1 ({validation_year}): {current_f1:.4f}")
+        print(f"  Best historical Recall: {best_recall:.4f}")
+        print(f"  Current Recall ({validation_year}): {current_recall:.4f}")
         print(f"  Performance drop: {performance_drop:.2%}")
         print(f"  Performance threshold: {self.performance_threshold:.2%}")
 
@@ -473,25 +473,50 @@ class DriftAwareRetrainingSystem:
 
         for model_name, result in results.items():
             if 'evaluation' in result:
-                model = result['model']
-                performance = result['evaluation']['metrics']
-                version = f"{current_year}_v{len(self.retraining_history) + 1}"
+                new_metrics = result['evaluation']['metrics']
+                new_score = (new_metrics['recall'],
+                             new_metrics['f1_score'],
+                             new_metrics['precision'],
+                             new_metrics['accuracy']
+                            )
+                old_metrics = current_performances.get(model_name)
 
-                # Register model
-                model_entry = self.registry.register_model(
-                    model=model,
-                    model_name=model_name,
-                    version=version,
-                    performance=performance,
-                    training_years=training_years,
-                    validation_year=validation_year,
-                    features=list(X_train.columns),
-                    retraining_reason=retraining_reason
-                )
+                if old_metrics:
+                    old_score = (old_metrics['recall'],
+                                 old_metrics['f1_score'],
+                                 old_metrics['precision'],
+                                 old_metrics['accuracy'])
+                    print(f"Comparing NEW ({new_score[0]:.4f} Recall) vs Current ({old_score[0]:.4f} Recall) on {current_year}")
+                else:
+                    # If no model exists for this type, new model wins by default.
+                    old_score = (-1, -1, -1, -1)
+                
+                # Only register if the new model is better than the old model on prioritized metrics.
+                if new_score >= old_score:
+                    print ("Saving new model, it's performance is greater than the old model.")
+                    model = result['model']
+                    performance = result['evaluation']['metrics']
+                    version = f"{current_year}_v{len(self.retraining_history) + 1}"
 
-                # Set as current version
-                self.registry.set_current_version(model_name, version)
-                registered_models[model_name] = model_entry
+                    # Register model
+                    model_entry = self.registry.register_model(
+                        model=model,
+                        model_name=model_name,
+                        version=version,
+                        performance=performance,
+                        training_years=training_years,
+                        validation_year=validation_year,
+                        features=list(X_train.columns),
+                        retraining_reason=retraining_reason
+                    )
+
+                    # Set as current version
+                    self.registry.set_current_version(model_name, version)
+                    registered_models[model_name] = model_entry
+
+
+                else:
+                    print("New model not saved. It's preformance is worse than the old model.")
 
         # Log retraining event
         retraining_event = {

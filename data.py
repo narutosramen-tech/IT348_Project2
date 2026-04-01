@@ -153,6 +153,51 @@ def print_data_summary(data_dict: Dict[str, Tuple[pd.DataFrame, pd.Series]]):
 
     print("\n" + "="*60)
 
+def load_single_file_data(file_path: str) -> Dict[str, Tuple[pd.DataFrame, pd.Series]]:
+    """
+    Load a single .csv file, process it, and return it in the (X, y) format.
+
+    Args:
+        file_path: Path to the specific CSV file
+    """
+
+    if not os.path.isfile(file_path):
+        raise ValueError(f"File not found: {file_path}")
+    
+    filename = os.path.basename(file_path)
+
+    match = re.match(r'sampled_(\d+)_(\w+)_api\.csv', filename)
+
+    if match:
+        year = match.group(1)
+        label_str = match.group(2).lower()
+        label = 1 if label_str == 'malware' else 0
+    else:
+        year = "Unkown"
+        label = None
+    
+    try:
+        df = pd.read_csv(file_path)
+        if df.empty:
+            raise ValueError(f'File {filename} is empty')
+        
+        # Drop the first column (identifier)
+        if len(df.columns) > 0:
+            df = df.drop(columns = [df.columns[0]])
+
+        if label is not None:
+            df = df.assign(label = label)
+        elif 'label' not in df.columns:
+            raise ValueError(f'No label found in filename or CSV content for {filename}')
+        
+        y = df['label'].copy()
+        X = df.drop(columns = ['label']).apply(pd.to_numeric, errors = 'coerce')
+
+        print(f"Processed single file {filename}: year = {year}, samples = {len(X)}")
+        return {year: (X, y)}
+    except Exception as e:
+        print(f"Error reading single file {filename}: {e}")
+        raise
 
 # Example usage
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 {
   "data_folder": "input_data",
   "model_registry": "model_registry",
-  "drift_threshold": 0.3,
+  "drift_threshold": 0.45,
   "performance_threshold": 0.05,
   "default_voting": "hard",
   "default_tie_breaker": "malware",
